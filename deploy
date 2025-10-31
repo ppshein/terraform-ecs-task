@@ -1,0 +1,146 @@
+#!/bin/sh
+<<DOC
+  .SYNOPSIS
+    Apply terraform
+  .POSITION_PARAMETER BU
+    Business unit
+  .POSITION_PARAMETER PROJECT
+    Project name
+  .POSITION_PARAMETER ENV
+    Environment name
+  .EXAMPLE
+    ./deploy.sh finance myproject dev
+DOC
+
+# e: immediately exit if error
+# u: exit if refer to non existing variable
+# o: return error code of any sub command in pipeline
+set -euo pipefail
+
+TASK=$1
+ARGS=${@:2}
+
+help__workspace="Configuration Workspace for Terraform"
+task_workspace() {
+  local bu=$1
+  local project=$2
+  local environment=$3
+
+  workspace="${bu}-${project}-${environment}"
+
+  echo "Here is selected workspace ${workspace}"
+
+  export AWS_SDK_LOAD_CONFIG="true"
+}
+
+help__infraPlan="Plan infrastructure"
+task_infraPlan() {
+  local bu=$1
+  local project=$2
+  local environment=$3
+
+  if [[ -z "${bu}" ||  -z "${project}" ||  -z "${environment}" ]]; then
+    echo "One or more required variable is missing"
+    exit 1
+  fi
+
+  task_workspace "${bu}" "${project}" "${environment}"
+  
+  # Change to infrastructure/dtap directory
+  cd infrastructure/dtap
+  
+  #remove existed terraform plan file
+  rm -f plan.out
+
+  terraform init -backend-config="backend/backend-${environment}.conf"
+  terraform workspace select $workspace  || terraform workspace new $workspace
+  terraform plan -out plan.out -var-file values/${bu}/${project}/${environment}.tfvars
+}
+
+help__infraApply="Apply infrastructure"
+task_infraApply() {
+  local bu=$1
+  local project=$2
+  local environment=$3
+
+  if [[ -z "${bu}" ||  -z "${project}" ||  -z "${environment}" ]]; then
+    echo "One or more required variable is missing"
+    exit 1
+  fi
+
+  task_workspace "${bu}" "${project}" "${environment}"
+
+  # Change to infrastructure/dtap directory
+  cd infrastructure/dtap
+
+  terraform init -backend-config="backend/backend-${environment}.conf"
+  terraform workspace select $workspace || terraform workspace new $workspace
+  terraform apply plan.out
+}
+
+# Plan Destroy infrastructure
+help__infraDestroyPlan="Plan of destroying infrastructure"
+task_infraDestroyPlan() {
+  local bu=$1
+  local project=$2
+  local environment=$3
+
+  if [[ -z "${bu}" ||  -z "${project}" ||  -z "${environment}" ]]; then
+    echo "One or more required variable is missing"
+    exit 1
+  fi
+
+  task_workspace "${bu}" "${project}" "${environment}"
+
+  # Change to infrastructure/dtap directory
+  cd infrastructure/dtap
+
+  #remove existed terraform plan file
+  rm -f destroy_plan.out
+  terraform init -backend-config="backend/backend-${environment}.conf"
+  terraform workspace select $workspace || terraform workspace new $workspace
+  terraform plan -destroy -out destroy_plan.out -var-file values/${bu}/${project}/${environment}.tfvars
+}
+
+# Destroy infrastructure
+help__infraDestroy="Destroy infrastructure"
+task_infraDestroy() {
+  local bu=$1
+  local project=$2
+  local environment=$3
+
+  if [[ -z "${bu}" ||  -z "${project}" ||  -z "${environment}" ]]; then
+    echo "One or more required variable is missing"
+    exit 1
+  fi
+
+  task_workspace "${bu}" "${project}" "${environment}"
+  
+  # Change to infrastructure/dtap directory
+  cd infrastructure/dtap
+  
+  terraform init -backend-config="backend/backend-${environment}.conf"
+  terraform workspace select $workspace || terraform workspace new $workspace
+  terraform apply destroy_plan.out
+}
+
+list_all_helps() {
+  compgen -v | grep -E "^help__.*"
+}
+
+NEW_LINE=$'\n'
+if type -t "task_$TASK" &>/dev/null; then
+  task_$TASK $ARGS
+else
+  echo "usage: $0 <task> [<..args>]"
+  echo "task:"
+
+  HELPS=""
+  for help in $(list_all_helps); do
+
+    HELPS="$HELPS    ${help/help__/} |-- ${!help}$NEW_LINE"
+  done
+
+  echo "$HELPS" | column -t -s "|"
+  exit 1
+fi

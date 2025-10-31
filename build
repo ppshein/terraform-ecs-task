@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Build and push Node.js application to ECR
+# Usage: ./build.sh [tag]
+
+
+set -e
+
+# Configuration
+AWS_REGION="${AWS_REGION:-eu-west-1}"
+ECR_REPOSITORY="${ECR_REPOSITORY:-sre/dev-nodejs-app}"
+IMAGE_TAG="${1:-latest}"
+CERTIFICATE_PASSWORD="${CERTIFICATE_PASSWORD:-mySecurePassword123}"
+
+echo "Building and pushing Node.js application to ECR"
+echo "Repository: ${ECR_REPOSITORY}"
+echo "Tag: ${IMAGE_TAG}"
+echo "Region: ${AWS_REGION}"
+
+# Get AWS account ID
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+echo "AWS Account ID: ${AWS_ACCOUNT_ID}"
+
+# Navigate to the Node.js app directory
+cd "$(dirname "$0")/apps"
+
+# Login to ECR
+echo "Logging in to ECR..."
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URI}
+
+# Create repository if it doesn't exist
+echo "Ensuring ECR repository exists..."
+aws ecr describe-repositories --repository-names ${ECR_REPOSITORY} --region ${AWS_REGION} 2>/dev/null || \
+aws ecr create-repository --repository-name ${ECR_REPOSITORY} --region ${AWS_REGION}
+
+# Build the Docker image
+echo "Building Docker image..."
+docker build --build-arg certificatePassword=${CERTIFICATE_PASSWORD} -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+
+# Tag the image for ECR
+echo "Tagging image for ECR..."
+docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_URI}/${ECR_REPOSITORY}:${IMAGE_TAG}
+
+# Also tag as latest if not already latest
+if [ "${IMAGE_TAG}" != "latest" ]; then
+    docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_URI}/${ECR_REPOSITORY}:latest
+fi
+
+# Push the image to ECR
+echo "Pushing image to ECR..."
+docker push ${ECR_URI}/${ECR_REPOSITORY}:${IMAGE_TAG}
+
+if [ "${IMAGE_TAG}" != "latest" ]; then
+    docker push ${ECR_URI}/${ECR_REPOSITORY}:latest
+fi
+
+# Clean up local images
+echo "Cleaning up local images..."
+docker rmi ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_URI}/${ECR_REPOSITORY}:${IMAGE_TAG} || true
+if [ "${IMAGE_TAG}" != "latest" ]; then
+    docker rmi ${ECR_URI}/${ECR_REPOSITORY}:latest || true
+fi
+
+echo "Successfully built and pushed ${ECR_REPOSITORY}:${IMAGE_TAG}"
+echo "Image URI: ${ECR_URI}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+
+# Go back to the root directory
+cd ../../

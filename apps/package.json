@@ -1,0 +1,22 @@
+{
+  "name": "ecs-nodejs-app",
+  "version": "1.0.0",
+  "description": "Simple Node.js application for ECS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "ecs"
+  ],
+  "author": "ECS Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
