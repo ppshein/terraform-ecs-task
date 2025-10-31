@@ -372,38 +372,6 @@ The infrastructure supports multiple AWS authentication methods:
 - **IAM Instance Role**: Automatic when running on EC2
 - **AWS SSO**: For organizations using Single Sign-On
 
-#### **Assume Role Authentication (Cross-Account):**
-For cross-account deployments, you can configure assume role in `provider.tf`:
-
-```terraform
-provider "aws" {
-  region = var.region
-  
-  assume_role {
-    role_arn = "arn:aws:iam::TARGET-ACCOUNT:role/TerraformExecutionRole"
-    # Optional: session_name = "terraform-session"
-    # Optional: external_id = "unique-external-id"
-  }
-  
-  default_tags {
-    tags = local.common_tags
-  }
-}
-```
-
-#### **Backend Assume Role Configuration:**
-You can also configure assume role in backend configuration files (`backend-*.conf`):
-
-```hcl
-# Example: backend-dev.conf
-region         = "eu-west-1"
-bucket         = "terraform-state-digital-dev"
-key            = "sre/dev/terraform.tfstate"
-dynamodb_table = "terraform-state-lock-digital-dev"
-encrypt        = true
-role_arn       = "arn:aws:iam::TARGET-ACCOUNT:role/TerraformRole"
-```
-
 ### **Manual Backend Setup**
 
 If you need to create the backend resources:
@@ -678,10 +646,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_assume_role_arn"></a> [assume\_role\_arn](#input\_assume\_role\_arn) | ARN of the IAM role to assume for cross-account access | `string` | `""` | no |
 | <a name="input_business_unit"></a> [business\_unit](#input\_business\_unit) | The name of the business unit. | `string` | n/a | yes |
 | <a name="input_ecr_lifecycle_policy"></a> [ecr\_lifecycle\_policy](#input\_ecr\_lifecycle\_policy) | ECR lifecycle policy configuration | <pre>object({<br/>    untagged_image_days    = number<br/>    tagged_image_count     = number<br/>    production_image_count = number<br/>  })</pre> | <pre>{<br/>  "production_image_count": 20,<br/>  "tagged_image_count": 10,<br/>  "untagged_image_days": 7<br/>}</pre> | no |
-| <a name="input_ecs"></a> [ecs](#input\_ecs) | The attribute of ECS information | <pre>object({<br/>    cluster_name             = string<br/>    service_name             = string<br/>    task_family              = string<br/>    container_name           = string<br/>    container_image          = string<br/>    container_port           = number<br/>    host_port                = number<br/>    cpu                      = number<br/>    memory                   = number<br/>    desired_count            = number<br/>    deployment_type          = string<br/>    enable_logging           = bool<br/>    log_group_name           = string<br/>    log_retention_days       = number<br/>    enable_ecr               = bool<br/>    ecr_repository_name      = string<br/>    ecr_image_tag_mutability = string<br/>    ecr_scan_on_push         = bool<br/>    enable_tls               = bool<br/>    certificate_arn          = string<br/>    ssl_policy               = string<br/>    target_protocol          = string<br/>    target_port              = number<br/>  })</pre> | n/a | yes |
+| <a name="input_ecs"></a> [ecs](#input\_ecs) | The attribute of ECS information | <pre>object({<br/>    cluster_name                   = string<br/>    service_name                   = string<br/>    task_family                    = string<br/>    container_name                 = string<br/>    container_image                = string<br/>    container_port                 = number<br/>    host_port                      = number<br/>    cpu                            = number<br/>    memory                         = number<br/>    desired_count                  = number<br/>    deployment_type                = string<br/>    enable_logging                 = bool<br/>    log_group_name                 = string<br/>    log_retention_days             = number<br/>    enable_ecr                     = bool<br/>    ecr_repository_name            = string<br/>    ecr_image_tag_mutability       = string<br/>    ecr_scan_on_push               = bool<br/>    enable_tls                     = bool<br/>    certificate_arn                = string<br/>    ssl_policy                     = string<br/>    target_protocol                = string<br/>    target_port                    = number<br/>    enable_autoscaling             = bool<br/>    autoscaling_min_capacity       = number<br/>    autoscaling_max_capacity       = number<br/>    autoscaling_cpu_target         = number<br/>    autoscaling_scale_in_cooldown  = number<br/>    autoscaling_scale_out_cooldown = number<br/>  })</pre> | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | The name of the environment. | `string` | n/a | yes |
 | <a name="input_project"></a> [project](#input\_project) | The name of the project. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | n/a | `string` | `"eu-west-1"` | no |
@@ -723,6 +690,11 @@ No modules.
 | <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | List of Public Subnet IDs |
 | <a name="output_vpc_cidr_block"></a> [vpc\_cidr\_block](#output\_vpc\_cidr\_block) | VPC CIDR Block |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID |
+| <a name="output_autoscaling_target_resource_id"></a> [autoscaling\_target\_resource\_id](#output\_autoscaling\_target\_resource\_id) | Auto Scaling Target Resource ID |
+| <a name="output_autoscaling_policy_arn"></a> [autoscaling\_policy\_arn](#output\_autoscaling\_policy\_arn) | Auto Scaling Policy ARN |
+| <a name="output_autoscaling_min_capacity"></a> [autoscaling\_min\_capacity](#output\_autoscaling\_min\_capacity) | Auto Scaling Minimum Capacity |
+| <a name="output_autoscaling_max_capacity"></a> [autoscaling\_max\_capacity](#output\_autoscaling\_max\_capacity) | Auto Scaling Maximum Capacity |
+| <a name="output_autoscaling_cpu_target"></a> [autoscaling\_cpu\_target](#output\_autoscaling\_cpu\_target) | Auto Scaling CPU Target Percentage |
 
 ## Best Practices
 
@@ -736,6 +708,16 @@ No modules.
 - Implement least-privilege IAM roles
 - Use private subnets for application containers
 - Enable ECR image scanning for vulnerability detection
+
+### Auto Scaling Configuration
+- Enable CPU-based autoscaling for production workloads
+- Recommended settings:
+  - Minimum capacity: 2 (for high availability)
+  - Maximum capacity: 10 (adjust based on expected load)
+  - CPU target: 70% (balance between performance and cost)
+  - Scale-in cooldown: 300s (prevent premature scale-in)
+  - Scale-out cooldown: 60s (quick response to load increases)
+- Monitor CloudWatch metrics for scaling behavior optimization
 
 ### Infrastructure Management
 - Deploy ECR repository first (core module)
@@ -751,4 +733,4 @@ No modules.
 
 ---
 
-**Note**: This infrastructure is production-ready with HTTPS-only configuration, multi-AZ deployment, and comprehensive security controls. Adjust the configuration values in the tfvars files according to your specific requirements.
+**Note**: This infrastructure is production-ready with HTTPS-only configuration, multi-AZ deployment, CPU-based autoscaling, and comprehensive security controls. Adjust the configuration values in the tfvars files according to your specific requirements.

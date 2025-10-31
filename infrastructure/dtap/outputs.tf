@@ -124,3 +124,29 @@ output "ecs_task_role_arn" {
   description = "ECS Task Role ARN"
   value       = aws_iam_role.ecs_task_role.arn
 }
+
+# Autoscaling Outputs
+output "autoscaling_target_resource_id" {
+  description = "Autoscaling target resource ID"
+  value       = var.ecs.enable_autoscaling ? aws_appautoscaling_target.ecs_target[0].resource_id : ""
+}
+
+output "autoscaling_policy_arn" {
+  description = "Autoscaling policy ARN"
+  value       = var.ecs.enable_autoscaling ? aws_appautoscaling_policy.ecs_scale_up[0].arn : ""
+}
+
+output "autoscaling_min_capacity" {
+  description = "Autoscaling minimum capacity"
+  value       = var.ecs.enable_autoscaling ? var.ecs.autoscaling_min_capacity : 0
+}
+
+output "autoscaling_max_capacity" {
+  description = "Autoscaling maximum capacity"
+  value       = var.ecs.enable_autoscaling ? var.ecs.autoscaling_max_capacity : 0
+}
+
+output "autoscaling_cpu_target" {
+  description = "Autoscaling CPU target percentage"
+  value       = var.ecs.enable_autoscaling ? var.ecs.autoscaling_cpu_target : 0
+}

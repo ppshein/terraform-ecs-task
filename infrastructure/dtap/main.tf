@@ -345,3 +345,40 @@ resource "aws_ecs_service" "main" {
     Name = var.ecs.service_name
   })
 }
+
+# Application Auto Scaling Target
+resource "aws_appautoscaling_target" "ecs_target" {
+  count              = var.ecs.enable_autoscaling ? 1 : 0
+  max_capacity       = var.ecs.autoscaling_max_capacity
+  min_capacity       = var.ecs.autoscaling_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.main.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+
+  depends_on = [aws_ecs_service.main]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.ecs.service_name}-autoscaling-target"
+  })
+}
+
+# Auto Scaling Policy - Scale Up
+resource "aws_appautoscaling_policy" "ecs_scale_up" {
+  count              = var.ecs.enable_autoscaling ? 1 : 0
+  name               = "${var.ecs.service_name}-scale-up"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs_target[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs_target[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs_target[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = var.ecs.autoscaling_cpu_target
+    scale_in_cooldown  = var.ecs.autoscaling_scale_in_cooldown
+    scale_out_cooldown = var.ecs.autoscaling_scale_out_cooldown
+  }
+
+  depends_on = [aws_appautoscaling_target.ecs_target]
+}

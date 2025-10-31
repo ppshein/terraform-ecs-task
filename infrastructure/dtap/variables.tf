@@ -3,12 +3,6 @@ variable "region" {
   default = "eu-west-1"
 }
 
-variable "assume_role_arn" {
-  type        = string
-  description = "ARN of the IAM role to assume for cross-account access"
-  default     = ""
-}
-
 variable "business_unit" {
   type        = string
   description = "The name of the business unit."
@@ -71,7 +65,46 @@ variable "ecs" {
     ssl_policy               = string
     target_protocol          = string
     target_port              = number
+    # Autoscaling configuration
+    enable_autoscaling           = bool
+    autoscaling_min_capacity     = number
+    autoscaling_max_capacity     = number
+    autoscaling_cpu_target       = number
+    autoscaling_scale_in_cooldown = number
+    autoscaling_scale_out_cooldown = number
   })
+  default = {
+    cluster_name             = "app-cluster"
+    service_name             = "app-service"
+    task_family              = "app-task"
+    container_name           = "app-container"
+    container_image          = "nginx:latest"
+    container_port           = 80
+    host_port                = 80
+    cpu                      = 256
+    memory                   = 512
+    desired_count            = 1
+    deployment_type          = "ECS"
+    enable_logging           = true
+    log_group_name           = "/ecs/app"
+    log_retention_days       = 14
+    enable_ecr               = false
+    ecr_repository_name      = "app-repo"
+    ecr_image_tag_mutability = "MUTABLE"
+    ecr_scan_on_push         = true
+    enable_tls               = false
+    certificate_arn          = ""
+    ssl_policy               = "ELBSecurityPolicy-TLS-1-2-2017-01"
+    target_protocol          = "HTTP"
+    target_port              = 80
+    # Autoscaling configuration
+    enable_autoscaling           = false
+    autoscaling_min_capacity     = 1
+    autoscaling_max_capacity     = 3
+    autoscaling_cpu_target       = 70.0
+    autoscaling_scale_in_cooldown = 300
+    autoscaling_scale_out_cooldown = 60
+  }
 }
 
 variable "ecr_lifecycle_policy" {
